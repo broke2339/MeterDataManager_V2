@@ -1,65 +1,169 @@
 import customtkinter as ctk
 from tkinter import filedialog, messagebox
+import threading
+import time
 
 from services.excel_importer import import_excel
-from database.repository import search_consumer
+from database.repository import (
+    search_consumer,
+    get_total_records
+)
+
 from app.details_window import show_consumer
 
 
 def start_app():
 
+    # ----------------------------
     # Theme
+    # ----------------------------
+
     ctk.set_appearance_mode("System")
     ctk.set_default_color_theme("blue")
 
-    # Window
-    app = ctk.CTk()
-    app.title("Meter Data Manager Pro")
-    app.geometry("900x400")
+    # ----------------------------
+    # Main Window
+    # ----------------------------
 
-    # -------------------------
+    app = ctk.CTk()
+
+    app.title("Meter Data Manager Pro")
+
+    app.geometry("1100x650")
+
+    app.minsize(950, 600)
+
+    # ----------------------------
+    # Variables
+    # ----------------------------
+
+    start_time = 0
+
+    # ----------------------------
+    # Progress Callback
+    # ----------------------------
+
+    def update_progress(current, total):
+
+        if total <= 0:
+            return
+
+        percent = current / total
+
+        progress_bar.set(percent)
+
+        progress_percent.configure(
+            text=f"{percent*100:.1f}%"
+        )
+
+        progress_label.configure(
+            text=f"Processed : {current:,} / {total:,}"
+        )
+
+        app.update_idletasks()
+
+    # ----------------------------
     # Import Function
-    # -------------------------
+    # ----------------------------
 
     def do_import():
 
         file_path = filedialog.askopenfilename(
             title="Select Excel File",
-            filetypes=[("Excel Files", "*.xlsx *.xls")]
+            filetypes=[
+                ("Excel Files", "*.xlsx *.xls")
+            ]
         )
 
         if not file_path:
             return
 
-        try:
+        def worker():
 
-            status.configure(text="Importing... Please Wait")
+            nonlocal start_time
 
-            app.update()
+            try:
 
-            total = import_excel(file_path)
+                start_time = time.time()
 
-            status.configure(
-                text=f"Import Completed | Records : {total}"
-            )
+                import_btn.configure(state="disabled")
 
-            messagebox.showinfo(
-                "Success",
-                f"{total} Records Imported Successfully."
-            )
+                progress_bar.set(0)
 
-        except Exception as e:
+                progress_percent.configure(
+                    text="0%"
+                )
 
-            status.configure(text="Import Failed")
+                progress_label.configure(
+                    text="Starting Import..."
+                )
 
-            messagebox.showerror(
-                "Error",
-                str(e)
-            )
+                status.configure(
+                    text="Importing..."
+                )
 
-    # -------------------------
-    # Search Function
-    # -------------------------
+                total = import_excel(
+                    file_path,
+                    progress_callback=update_progress
+                )
+
+                seconds = round(
+                    time.time() - start_time,
+                    2
+                )
+
+                progress_bar.set(1)
+
+                progress_percent.configure(
+                    text="100%"
+                )
+
+                progress_label.configure(
+                    text="Import Completed"
+                )
+
+                total_records.configure(
+                    text=f"Database Records : {get_total_records():,}"
+                )
+
+                status.configure(
+                    text="Ready"
+                )
+
+                messagebox.showinfo(
+                    "Import Complete",
+                    f"""
+Total Imported : {total:,}
+
+Time : {seconds} sec
+"""
+                )
+
+            except Exception as e:
+
+                messagebox.showerror(
+                    "Import Error",
+                    str(e)
+                )
+
+                status.configure(
+                    text="Import Failed"
+                )
+
+            finally:
+
+                import_btn.configure(
+                    state="normal"
+                )
+
+        threading.Thread(
+            target=worker,
+            daemon=True
+        ).start()
+
+    # ----------------------------
+    # Search
+    # ----------------------------
 
     def do_search():
 
@@ -69,7 +173,7 @@ def start_app():
 
             messagebox.showwarning(
                 "Warning",
-                "Please Enter Meter No or Consumer No"
+                "Enter Meter No or Consumer No"
             )
 
             return
@@ -78,82 +182,183 @@ def start_app():
 
         if row:
 
-            status.configure(text="Consumer Found")
+            status.configure(
+                text="Consumer Found"
+            )
 
             show_consumer(row)
 
         else:
 
-            status.configure(text="Consumer Not Found")
+            status.configure(
+                text="Consumer Not Found"
+            )
 
             messagebox.showinfo(
                 "Search",
                 "Consumer Not Found"
             )
-                # -------------------------
+
+    # ----------------------------
     # Header
-    # -------------------------
+    # ----------------------------
 
     title = ctk.CTkLabel(
         app,
         text="Meter Data Manager Pro",
-        font=("Arial", 26, "bold")
+        font=("Arial", 28, "bold")
     )
 
     title.pack(pady=20)
 
-    # -------------------------
+    # ----------------------------
     # Toolbar
-    # -------------------------
+    # ----------------------------
 
     toolbar = ctk.CTkFrame(app)
-    toolbar.pack(fill="x", padx=20)
+
+    toolbar.pack(
+        fill="x",
+        padx=20
+    )
 
     import_btn = ctk.CTkButton(
         toolbar,
         text="📂 Import Excel",
-        width=150,
+        width=160,
         command=do_import
     )
 
-    import_btn.pack(side="left", padx=10, pady=10)
+    import_btn.pack(
+        side="left",
+        padx=10,
+        pady=10
+    )
 
     search_box = ctk.CTkEntry(
         toolbar,
-        width=400,
-        placeholder_text="Enter Meter No or Consumer No"
+        width=450,
+        placeholder_text="Meter No / Consumer No"
     )
 
-    search_box.pack(side="left", padx=10)
+    search_box.pack(
+        side="left",
+        padx=10
+    )
 
-    search_box.bind("<Return>", lambda event: do_search())
+    search_box.bind(
+        "<Return>",
+        lambda e: do_search()
+    )
 
     search_btn = ctk.CTkButton(
         toolbar,
         text="Search",
-        width=100,
+        width=120,
         command=do_search
     )
 
-    search_btn.pack(side="left", padx=10)
-
-    # -------------------------
-    # Status Bar
-    # -------------------------
-
-    status = ctk.CTkLabel(
-        app,
-        text="Ready",
-        anchor="w"
+    search_btn.pack(
+        side="left",
+        padx=10
     )
+        # ----------------------------
+    # Progress Frame
+    # ----------------------------
 
-    status.pack(
+    progress_frame = ctk.CTkFrame(app)
+
+    progress_frame.pack(
         fill="x",
         padx=20,
         pady=20
     )
 
-    # Search box par cursor
+    progress_label = ctk.CTkLabel(
+        progress_frame,
+        text="Ready",
+        anchor="w"
+    )
+
+    progress_label.pack(
+        fill="x",
+        padx=10,
+        pady=(10, 5)
+    )
+
+    progress_bar = ctk.CTkProgressBar(
+        progress_frame
+    )
+
+    progress_bar.pack(
+        fill="x",
+        padx=10
+    )
+
+    progress_bar.set(0)
+
+    progress_percent = ctk.CTkLabel(
+        progress_frame,
+        text="0%"
+    )
+
+    progress_percent.pack(
+        pady=(5, 10)
+    )
+
+    # ----------------------------
+    # Information Frame
+    # ----------------------------
+
+    info_frame = ctk.CTkFrame(app)
+
+    info_frame.pack(
+        fill="x",
+        padx=20
+    )
+
+    total_records = ctk.CTkLabel(
+        info_frame,
+        text=f"Database Records : {get_total_records():,}",
+        font=("Arial", 15, "bold")
+    )
+
+    total_records.pack(
+        side="left",
+        padx=10,
+        pady=10
+    )
+
+    status = ctk.CTkLabel(
+        info_frame,
+        text="Ready",
+        font=("Arial", 14)
+    )
+
+    status.pack(
+        side="right",
+        padx=10
+    )
+
+    # ----------------------------
+    # Footer
+    # ----------------------------
+
+    footer = ctk.CTkLabel(
+        app,
+        text="Meter Data Manager Pro v1.0",
+        text_color="gray"
+    )
+
+    footer.pack(
+        side="bottom",
+        pady=10
+    )
+
+    # ----------------------------
+    # Focus
+    # ----------------------------
+
     search_box.focus()
 
     app.mainloop()
