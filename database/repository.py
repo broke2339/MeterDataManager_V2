@@ -1,4 +1,6 @@
 from database.database import get_connection
+import sqlite3
+import os
 
 
 # =====================================================
@@ -108,3 +110,18 @@ def get_total_records():
     conn.close()
 
     return total
+    import os
+
+
+def get_database_size():
+
+    path = "database/meterdata.db"
+
+    if not os.path.exists(path):
+        return "0 MB"
+
+    size = os.path.getsize(path)
+
+    mb = size / (1024 * 1024)
+
+    return f"{mb:.2f} MB"

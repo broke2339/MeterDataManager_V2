@@ -4,9 +4,11 @@ import threading
 import time
 
 from services.excel_importer import import_excel
+
 from database.repository import (
     search_consumer,
-    get_total_records
+    get_total_records,
+    get_database_size
 )
 
 from app.details_window import show_consumer
@@ -29,9 +31,9 @@ def start_app():
 
     app.title("Meter Data Manager Pro")
 
-    app.geometry("1100x650")
+    app.geometry("1200x900")
 
-    app.minsize(950, 600)
+    app.minsize(1100, 850)
 
     # ----------------------------
     # Variables
@@ -129,6 +131,7 @@ def start_app():
                 status.configure(
                     text="Ready"
                 )
+                
 
                 messagebox.showinfo(
                     "Import Complete",
@@ -271,7 +274,7 @@ Time : {seconds} sec
     progress_frame.pack(
         fill="x",
         padx=20,
-        pady=20
+        pady=10
     )
 
     progress_label = ctk.CTkLabel(
@@ -340,9 +343,132 @@ Time : {seconds} sec
         padx=10
     )
 
+        # ----------------------------
+    # Dashboard
+    # ----------------------------
+
+    dashboard = ctk.CTkFrame(app)
+
+    dashboard.pack(
+        fill="x",
+        padx=20,
+        pady=15
+    )
+
+    dashboard_title = ctk.CTkLabel(
+        dashboard,
+        text="📊 Dashboard",
+        font=("Arial", 18, "bold")
+    )
+
+    dashboard_title.pack(
+        anchor="w",
+        padx=15,
+        pady=(10, 5)
+    )
+
+    info = ctk.CTkFrame(dashboard)
+
+    info.pack(
+        fill="x",
+        padx=10,
+        pady=(0, 10)
+    )
+
+    db_records = ctk.CTkLabel(
+        info,
+        text=f"Database Records : {get_total_records():,}",
+        font=("Arial", 15)
+    )
+
+    db_records.grid(
+        row=0,
+        column=0,
+        padx=20,
+        pady=8,
+        sticky="w"
+    )
+
+    db_size = ctk.CTkLabel(
+        info,
+        text=f"Database Size : {get_database_size()}",
+        font=("Arial", 15)
+    )
+
+    db_size.grid(
+        row=0,
+        column=1,
+        padx=20,
+        pady=8,
+        sticky="w"
+    )
+
     # ----------------------------
     # Footer
     # ----------------------------
+        # ----------------------------
+    # Second Row
+    # ----------------------------
+
+    last_import = ctk.CTkLabel(
+        info,
+        text="Last Import : --",
+        font=("Arial", 15)
+    )
+
+    last_import.grid(
+        row=1,
+        column=0,
+        padx=20,
+        pady=8,
+        sticky="w"
+    )
+
+    import_time = ctk.CTkLabel(
+        info,
+        text="Import Time : --",
+        font=("Arial", 15)
+    )
+
+    import_time.grid(
+        row=1,
+        column=1,
+        padx=20,
+        pady=8,
+        sticky="w"
+    )
+
+    app_version = ctk.CTkLabel(
+        info,
+        text="Version : Build 1.1",
+        font=("Arial", 15)
+    )
+
+    app_version.grid(
+        row=2,
+        column=0,
+        padx=20,
+        pady=8,
+        sticky="w"
+    )
+
+    dashboard_status = ctk.CTkLabel(
+        info,
+        text="Status : Ready",
+        font=("Arial", 15)
+    )
+
+    dashboard_status.grid(
+        row=2,
+        column=1,
+        padx=20,
+        pady=8,
+        sticky="w"
+    )
+
+    # Equal column width
+    info.grid_columnconfigure(0, weight=1)
+    info.grid_columnconfigure(1, weight=1)
 
     footer = ctk.CTkLabel(
         app,
