@@ -343,132 +343,115 @@ Time : {seconds} sec
         padx=10
     )
 
-        # ----------------------------
-    # Dashboard
     # ----------------------------
+# Dashboard
+# ----------------------------
 
-    dashboard = ctk.CTkFrame(app)
+dashboard = ctk.CTkFrame(app)
 
-    dashboard.pack(
-        fill="x",
-        padx=20,
-        pady=15
+dashboard.pack(
+    fill="x",
+    padx=20,
+    pady=15
+)
+
+ctk.CTkLabel(
+    dashboard,
+    text="📊 Dashboard",
+    font=("Arial", 20, "bold")
+).pack(
+    anchor="w",
+    padx=15,
+    pady=(10, 15)
+)
+
+cards = ctk.CTkFrame(
+    dashboard,
+    fg_color="transparent"
+)
+
+cards.pack(
+    fill="x",
+    padx=10,
+    pady=(0, 10)
+)
+
+
+def create_card(parent, row, col, title, value):
+
+    card = ctk.CTkFrame(
+        parent,
+        corner_radius=12,
+        width=250,
+        height=100
     )
 
-    dashboard_title = ctk.CTkLabel(
-        dashboard,
-        text="📊 Dashboard",
-        font=("Arial", 18, "bold")
-    )
-
-    dashboard_title.pack(
-        anchor="w",
-        padx=15,
-        pady=(10, 5)
-    )
-
-    info = ctk.CTkFrame(dashboard)
-
-    info.pack(
-        fill="x",
+    card.grid(
+        row=row,
+        column=col,
         padx=10,
-        pady=(0, 10)
+        pady=10,
+        sticky="nsew"
     )
 
-    db_records = ctk.CTkLabel(
-        info,
-        text=f"Database Records : {get_total_records():,}",
-        font=("Arial", 15)
+    ctk.CTkLabel(
+        card,
+        text=title,
+        font=("Arial", 14)
+    ).pack(
+        pady=(15,5)
     )
 
-    db_records.grid(
-        row=0,
-        column=0,
-        padx=20,
-        pady=8,
-        sticky="w"
+    value_label = ctk.CTkLabel(
+        card,
+        text=value,
+        font=("Arial",22,"bold")
     )
 
-    db_size = ctk.CTkLabel(
-        info,
-        text=f"Database Size : {get_database_size()}",
-        font=("Arial", 15)
+    value_label.pack(
+        pady=(0,15)
     )
 
-    db_size.grid(
-        row=0,
-        column=1,
-        padx=20,
-        pady=8,
-        sticky="w"
-    )
-
+    return value_label
     # ----------------------------
-    # Footer
-    # ----------------------------
-        # ----------------------------
-    # Second Row
-    # ----------------------------
+# Dashboard Cards
+# ----------------------------
 
-    last_import = ctk.CTkLabel(
-        info,
-        text="Last Import : --",
-        font=("Arial", 15)
-    )
+db_records = create_card(
+    cards,
+    0,
+    0,
+    "📊 Records",
+    f"{get_total_records():,}"
+)
 
-    last_import.grid(
-        row=1,
-        column=0,
-        padx=20,
-        pady=8,
-        sticky="w"
-    )
+db_size = create_card(
+    cards,
+    0,
+    1,
+    "💾 Database",
+    get_database_size()
+)
 
-    import_time = ctk.CTkLabel(
-        info,
-        text="Import Time : --",
-        font=("Arial", 15)
-    )
+import_time = create_card(
+    cards,
+    1,
+    0,
+    "⏱ Import Time",
+    "--"
+)
 
-    import_time.grid(
-        row=1,
-        column=1,
-        padx=20,
-        pady=8,
-        sticky="w"
-    )
+dashboard_status = create_card(
+    cards,
+    1,
+    1,
+    "✅ Status",
+    "Ready"
+)
 
-    app_version = ctk.CTkLabel(
-        info,
-        text="Version : Build 1.1",
-        font=("Arial", 15)
-    )
+cards.grid_columnconfigure(0, weight=1)
+cards.grid_columnconfigure(1, weight=1)
 
-    app_version.grid(
-        row=2,
-        column=0,
-        padx=20,
-        pady=8,
-        sticky="w"
-    )
-
-    dashboard_status = ctk.CTkLabel(
-        info,
-        text="Status : Ready",
-        font=("Arial", 15)
-    )
-
-    dashboard_status.grid(
-        row=2,
-        column=1,
-        padx=20,
-        pady=8,
-        sticky="w"
-    )
-
-    # Equal column width
-    info.grid_columnconfigure(0, weight=1)
-    info.grid_columnconfigure(1, weight=1)
 
     footer = ctk.CTkLabel(
         app,
