@@ -8,12 +8,14 @@ from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table as PDFTable, TableStyle
+import platform
 
 from services.excel_importer import import_excel
 
+from database.database import get_connection
 from database.repository import (
     search_consumer,
-    search_consumers,
+    count_search_results,
     get_total_records,
     get_database_size
 )
@@ -27,12 +29,60 @@ from app.consumer_table import ConsumerTable
 ctk.set_appearance_mode("light")
 ctk.set_default_color_theme("blue")
 
+# -----------------------------------
+# Application Constants
+# -----------------------------------
+
+APP_NAME = "Meter Data Manager Pro"
+APP_VERSION = "v2.0 Stable"
+
+
+def show_about_dialog():
+    about_dialog = ctk.CTkToplevel()
+    about_dialog.title("About")
+    about_dialog.resizable(False, False)
+    about_dialog.grab_set()
+
+    content = ctk.CTkFrame(about_dialog, padx=20, pady=20)
+    content.pack(fill="both", expand=True)
+
+    title_label = ctk.CTkLabel(
+        content,
+        text=APP_NAME,
+        font=ctk.CTkFont(size=16, weight="bold"),
+        anchor="w"
+    )
+    title_label.pack(fill="x", pady=(0, 10))
+
+    info_items = [
+        f"Version: {APP_VERSION}",
+        "Developer:",
+        "Sachin Sharma",
+        "Database:",
+        "SQLite",
+        "Framework:",
+        "CustomTkinter",
+        "Python Version:",
+        platform.python_version()
+    ]
+
+    for item in info_items:
+        label = ctk.CTkLabel(content, text=item, anchor="w")
+        label.pack(fill="x", pady=(0, 5))
+
+    close_button = ctk.CTkButton(
+        content,
+        text="Close",
+        command=about_dialog.destroy
+    )
+    close_button.pack(pady=(10, 0))
+
 
 def start_app():
 
     app = ctk.CTk()
 
-    app.title("Meter Data Manager Pro")
+    app.title(APP_NAME)
 
     app.geometry("1250x750")
 
@@ -48,20 +98,145 @@ def start_app():
 
     search_after_id = None
 
+    current_page = 1
+    page_size = 100
+    search_total_results = 0
+
+    sort_column = "Consumer Name"
+    sort_direction = "ASC"
+
+    column_sort_mapping = {
+        "Meter No": "meter_no",
+        "Consumer No": "consumer_no",
+        "Consumer Name": "consumer_name",
+        "Mobile": "mobile1",
+        "Division": "division"
+    }
+
+    def get_search_rows(search_value, page, page_size, sort_column, sort_direction):
+        db_column = column_sort_mapping.get(sort_column, "consumer_name")
+        if sort_direction not in ("ASC", "DESC"):
+            sort_direction = "ASC"
+
+        offset = (page - 1) * page_size
+        conn = get_connection()
+        cursor = conn.cursor()
+
+        cursor.execute(
+            f"""
+            SELECT
+                meter_no,
+                consumer_no,
+                consumer_name,
+                mobile1,
+                division
+            FROM consumers
+            WHERE meter_no LIKE ?
+               OR consumer_no LIKE ?
+               OR consumer_name LIKE ?
+            ORDER BY {db_column} {sort_direction}
+            LIMIT ?
+            OFFSET ?
+            """,
+            (
+                f"%{search_value}%",
+                f"%{search_value}%",
+                f"%{search_value}%",
+                page_size,
+                offset
+            )
+        )
+
+        rows = cursor.fetchall()
+        conn.close()
+
+        return rows
+
+    def update_sort_indicators():
+        for col in table.table["columns"]:
+            if col == sort_column:
+                arrow = " 🔼" if sort_direction == "ASC" else " 🔽"
+                table.table.heading(col, text=col + arrow)
+            else:
+                table.table.heading(col, text=col)
+
+    def sort_by_column(column):
+        nonlocal sort_column, sort_direction
+
+        if sort_column == column:
+            sort_direction = "DESC" if sort_direction == "ASC" else "ASC"
+        else:
+            sort_column = column
+            sort_direction = "ASC"
+
+        update_sort_indicators()
+        do_search(1)
+
     # -----------------------------------
     # Search Function
     # -----------------------------------
 
-    def do_search():
+    def update_pagination_controls(start, end, total):
+
+        if total == 0:
+            pagination_label.configure(text="Showing 0-0 of 0 Records")
+            prev_btn.configure(state="disabled")
+            next_btn.configure(state="disabled")
+            return
+
+        last_page = (total + page_size - 1) // page_size
+
+        pagination_label.configure(
+            text=f"Showing {start}-{end} of {total:,} Records"
+        )
+
+        prev_btn.configure(
+            state="disabled" if current_page <= 1 else "normal"
+        )
+
+        next_btn.configure(
+            state="disabled" if current_page >= last_page else "normal"
+        )
+
+    def load_search_results(page=1):
+
+        nonlocal current_page, search_total_results
 
         value = toolbar.search_box.get().strip()
 
         if value == "":
+            current_page = 1
+            search_total_results = 0
+            table.load([])
+            update_pagination_controls(0, 0, 0)
             return
 
-        rows = search_consumers(value)
+        search_total_results = count_search_results(value)
+        last_page = (search_total_results + page_size - 1) // page_size if search_total_results else 1
+
+        if page < 1:
+            page = 1
+        elif page > last_page:
+            page = last_page
+
+        current_page = page
+
+        rows = get_search_rows(value, page, page_size, sort_column, sort_direction)
 
         table.load(rows)
+
+        if rows:
+            start = (page - 1) * page_size + 1
+            end = start + len(rows) - 1
+        else:
+            start = 0
+            end = 0
+
+        update_pagination_controls(start, end, search_total_results)
+
+    def do_search(page=1):
+
+        load_search_results(page)
 
     # -----------------------------------
     # Open Consumer
@@ -76,6 +251,147 @@ def start_app():
         if row:
 
             show_consumer(row)
+
+    # -----------------------------------
+    # Advanced Filters
+    # -----------------------------------
+
+    def load_filter_values():
+        """Load distinct values from database for filter dropdowns"""
+        conn = get_connection()
+        cursor = conn.cursor()
+        
+        filters = {
+            "division": ["All"],
+            "zone": ["All"],
+            "subdivision": ["All"]
+        }
+        
+        try:
+            cursor.execute("SELECT DISTINCT division FROM consumers WHERE division IS NOT NULL AND division != '' ORDER BY division")
+            filters["division"].extend([row[0] for row in cursor.fetchall()])
+            
+            cursor.execute("SELECT DISTINCT zone FROM consumers WHERE zone IS NOT NULL AND zone != '' ORDER BY zone")
+            filters["zone"].extend([row[0] for row in cursor.fetchall()])
+            
+            cursor.execute("SELECT DISTINCT subdivision FROM consumers WHERE subdivision IS NOT NULL AND subdivision != '' ORDER BY subdivision")
+            filters["subdivision"].extend([row[0] for row in cursor.fetchall()])
+        finally:
+            conn.close()
+        
+        return filters
+
+    def refresh_filters():
+        """Refresh filter dropdowns with latest database values"""
+        filter_values = load_filter_values()
+        division_combo.configure(values=filter_values["division"])
+        zone_combo.configure(values=filter_values["zone"])
+        subdivision_combo.configure(values=filter_values["subdivision"])
+        
+        division_combo.set("All")
+        zone_combo.set("All")
+        subdivision_combo.set("All")
+
+    def search_consumers_advanced(search_value, division, zone, subdivision, page, page_size, sort_column, sort_direction):
+        """Search consumers with advanced filters"""
+        db_column = column_sort_mapping.get(sort_column, "consumer_name")
+        if sort_direction not in ("ASC", "DESC"):
+            sort_direction = "ASC"
+        
+        offset = (page - 1) * page_size
+        conn = get_connection()
+        cursor = conn.cursor()
+        
+        where_clauses = []
+        params = []
+        
+        # Text search
+        if search_value:
+            where_clauses.append("(meter_no LIKE ? OR consumer_no LIKE ? OR consumer_name LIKE ?)")
+            params.extend([f"%{search_value}%", f"%{search_value}%", f"%{search_value}%"])
+        
+        # Division filter
+        if division and division != "All":
+            where_clauses.append("division = ?")
+            params.append(division)
+        
+        # Zone filter
+        if zone and zone != "All":
+            where_clauses.append("zone = ?")
+            params.append(zone)
+        
+        # Subdivision filter
+        if subdivision and subdivision != "All":
+            where_clauses.append("subdivision = ?")
+            params.append(subdivision)
+        
+        where_clause = " AND ".join(where_clauses) if where_clauses else "1=1"
+        
+        cursor.execute(
+            f"""
+            SELECT
+                meter_no,
+                consumer_no,
+                consumer_name,
+                mobile1,
+                division
+            FROM consumers
+            WHERE {where_clause}
+            ORDER BY {db_column} {sort_direction}
+            LIMIT ?
+            OFFSET ?
+            """,
+            params + [page_size, offset]
+        )
+        
+        rows = cursor.fetchall()
+        conn.close()
+        return rows
+
+    def count_search_results_advanced(search_value, division, zone, subdivision):
+        """Count total results with advanced filters"""
+        conn = get_connection()
+        cursor = conn.cursor()
+        
+        where_clauses = []
+        params = []
+        
+        # Text search
+        if search_value:
+            where_clauses.append("(meter_no LIKE ? OR consumer_no LIKE ? OR consumer_name LIKE ?)")
+            params.extend([f"%{search_value}%", f"%{search_value}%", f"%{search_value}%"])
+        
+        # Division filter
+        if division and division != "All":
+            where_clauses.append("division = ?")
+            params.append(division)
+        
+        # Zone filter
+        if zone and zone != "All":
+            where_clauses.append("zone = ?")
+            params.append(zone)
+        
+        # Subdivision filter
+        if subdivision and subdivision != "All":
+            where_clauses.append("subdivision = ?")
+            params.append(subdivision)
+        
+        where_clause = " AND ".join(where_clauses) if where_clauses else "1=1"
+        
+        cursor.execute(
+            f"SELECT COUNT(*) FROM consumers WHERE {where_clause}",
+            params
+        )
+        
+        count = cursor.fetchone()[0]
+        conn.close()
+        return count
+
+    def on_filter_changed(event=None):
+        """Handle filter dropdown changes"""
+        nonlocal current_page
+        current_page = 1
+        load_search_results(1)
 
     def schedule_live_search(event=None):
 
@@ -93,13 +409,7 @@ def start_app():
 
         search_after_id = None
 
-        if toolbar.search_box.get().strip() == "":
-
-            table.load([])
-
-            return
-
-        do_search()
+        do_search(1)
 
     def open_selected_consumer(event=None):
 
@@ -462,6 +772,26 @@ def start_app():
 
     )
 
+    toolbar.about_btn = ctk.CTkButton(
+
+        toolbar,
+
+        text="ℹ️ About",
+
+        width=140,
+
+        command=show_about_dialog
+
+    )
+
+    toolbar.about_btn.pack(
+
+        side="left",
+
+        padx=10
+
+    )
+
     progress = ProgressFrame(app)
 
     table = ConsumerTable(
@@ -471,6 +801,11 @@ def start_app():
         open_callback=open_from_table
 
     )
+
+    for col in table.table["columns"]:
+        table.table.heading(col, command=lambda c=col: sort_by_column(c))
+
+    update_sort_indicators()
 
     table.pack(
 
@@ -485,6 +820,40 @@ def start_app():
     )
 
     table.bind("<Double-1>", open_selected_consumer)
+
+    pagination_frame = ctk.CTkFrame(app)
+    pagination_frame.pack(
+        fill="x",
+        padx=20,
+        pady=(0,10)
+    )
+
+    prev_btn = ctk.CTkButton(
+        pagination_frame,
+        text="Previous",
+        width=100,
+        command=lambda: do_search(current_page - 1)
+    )
+    prev_btn.pack(side="left")
+
+    pagination_label = ctk.CTkLabel(
+        pagination_frame,
+        text="Showing 0-0 of 0 Records",
+        anchor="center"
+    )
+    pagination_label.pack(
+        side="left",
+        expand=True,
+        padx=10
+    )
+
+    next_btn = ctk.CTkButton(
+        pagination_frame,
+        text="Next",
+        width=100,
+        command=lambda: do_search(current_page + 1)
+    )
+    next_btn.pack(side="right")
         # -----------------------------------
     # Dashboard
     # -----------------------------------
@@ -631,18 +1000,37 @@ def start_app():
     # Status Bar
     # -----------------------------------
 
-    status = ctk.CTkLabel(
-        app,
-        text="Ready",
-        anchor="w",
-        height=28
-    )
-
-    status.pack(
+    # Status bar frame to hold both status text and version
+    status_frame = ctk.CTkFrame(app, height=28)
+    status_frame.pack(
         fill="x",
         side="bottom",
         padx=10,
         pady=(0, 5)
+    )
+
+    status = ctk.CTkLabel(
+        status_frame,
+        text="Ready",
+        anchor="w",
+        height=28
+    )
+    status.pack(
+        fill="x",
+        side="left",
+        expand=True
+    )
+
+    version_status = ctk.CTkLabel(
+        status_frame,
+        text=APP_VERSION,
+        anchor="e",
+        height=28,
+        text_color="gray"
+    )
+    version_status.pack(
+        side="right",
+        padx=(10, 0)
     )
 
     # -----------------------------------
@@ -651,7 +1039,7 @@ def start_app():
 
     footer = ctk.CTkLabel(
         app,
-        text="Meter Data Manager Pro v2.0",
+        text=f"{APP_NAME} {APP_VERSION}",
         text_color="gray"
     )
 

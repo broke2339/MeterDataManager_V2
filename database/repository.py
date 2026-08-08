@@ -138,6 +138,176 @@ def search_consumers_paginated(search_value, page, page_size):
 
 
 # =====================================================
+# Advanced Search with Filters, Pagination, and Sorting
+# =====================================================
+
+def search_consumers_advanced(
+    search_text,
+    division=None,
+    zone=None,
+    subdivision=None,
+    page=1,
+    page_size=100,
+    sort_column="consumer_name",
+    sort_order="ASC"
+):
+
+    allowed_sort_columns = (
+        "meter_no",
+        "consumer_no",
+        "consumer_name",
+        "division",
+        "zone",
+        "subdivision"
+    )
+
+    if sort_column not in allowed_sort_columns:
+        sort_column = "consumer_name"
+
+    sort_order = sort_order.upper()
+    if sort_order not in ("ASC", "DESC"):
+        sort_order = "ASC"
+
+    offset = (page - 1) * page_size
+    search_text = search_text or ""
+    term = f"%{search_text}%"
+
+    query = """
+        SELECT
+            meter_no,
+            consumer_no,
+            consumer_name,
+            father_name,
+            address,
+            zone,
+            division,
+            subdivision,
+            mobile1,
+            mobile2,
+            location,
+            remark
+        FROM consumers
+        WHERE (
+            meter_no LIKE ?
+            OR consumer_no LIKE ?
+            OR consumer_name LIKE ?
+            OR father_name LIKE ?
+            OR mobile1 LIKE ?
+            OR mobile2 LIKE ?
+            OR address LIKE ?
+            OR division LIKE ?
+            OR zone LIKE ?
+            OR subdivision LIKE ?
+        )
+    """
+
+    params = [
+        term,
+        term,
+        term,
+        term,
+        term,
+        term,
+        term,
+        term,
+        term,
+        term,
+    ]
+
+    if division is not None:
+        query += "\n        AND division = ?"
+        params.append(division)
+
+    if zone is not None:
+        query += "\n        AND zone = ?"
+        params.append(zone)
+
+    if subdivision is not None:
+        query += "\n        AND subdivision = ?"
+        params.append(subdivision)
+
+    query += f"\n        ORDER BY {sort_column} {sort_order}\n        LIMIT ?\n        OFFSET ?\n"
+    params.extend([page_size, offset])
+
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute(query, params)
+    rows = cursor.fetchall()
+
+    conn.close()
+
+    return rows
+
+
+# =====================================================
+# Count Advanced Search Results
+# =====================================================
+
+def count_advanced_results(
+    search_text,
+    division=None,
+    zone=None,
+    subdivision=None
+):
+
+    search_text = search_text or ""
+    term = f"%{search_text}%"
+
+    query = """
+        SELECT COUNT(*)
+        FROM consumers
+        WHERE (
+            meter_no LIKE ?
+            OR consumer_no LIKE ?
+            OR consumer_name LIKE ?
+            OR father_name LIKE ?
+            OR mobile1 LIKE ?
+            OR mobile2 LIKE ?
+            OR address LIKE ?
+            OR division LIKE ?
+            OR zone LIKE ?
+            OR subdivision LIKE ?
+        )
+    """
+
+    params = [
+        term,
+        term,
+        term,
+        term,
+        term,
+        term,
+        term,
+        term,
+        term,
+        term,
+    ]
+
+    if division is not None:
+        query += "\n        AND division = ?"
+        params.append(division)
+
+    if zone is not None:
+        query += "\n        AND zone = ?"
+        params.append(zone)
+
+    if subdivision is not None:
+        query += "\n        AND subdivision = ?"
+        params.append(subdivision)
+
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute(query, params)
+    total = cursor.fetchone()[0]
+
+    conn.close()
+
+    return total
+
+
+# =====================================================
 # Count Search Results
 # =====================================================
 
