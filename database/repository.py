@@ -1,5 +1,4 @@
 from database.database import get_connection
-import sqlite3
 import os
 
 
@@ -55,7 +54,7 @@ def upsert_many(records):
 
 
 # =====================================================
-# Search Consumer
+# Search Single Consumer
 # =====================================================
 
 def search_consumer(search_value):
@@ -110,8 +109,11 @@ def get_total_records():
     conn.close()
 
     return total
-    import os
 
+
+# =====================================================
+# Database Size
+# =====================================================
 
 def get_database_size():
 
@@ -125,3 +127,43 @@ def get_database_size():
     mb = size / (1024 * 1024)
 
     return f"{mb:.2f} MB"
+
+
+# =====================================================
+# Search Multiple Consumers
+# =====================================================
+
+def search_consumers(search_value):
+
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        SELECT
+            meter_no,
+            consumer_no,
+            consumer_name,
+            mobile1,
+            division
+
+        FROM consumers
+
+        WHERE meter_no LIKE ?
+           OR consumer_no LIKE ?
+           OR consumer_name LIKE ?
+
+        ORDER BY consumer_name
+
+        LIMIT 100
+
+    """, (
+        f"%{search_value}%",
+        f"%{search_value}%",
+        f"%{search_value}%"
+    ))
+
+    rows = cursor.fetchall()
+
+    conn.close()
+
+    return rows
