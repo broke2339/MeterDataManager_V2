@@ -1,4 +1,5 @@
 import time
+import shutil
 import customtkinter as ctk
 from tkinter import filedialog, messagebox
 from openpyxl import Workbook
@@ -292,6 +293,80 @@ def start_app():
         )
 
     # -----------------------------------
+    # Backup Database
+    # -----------------------------------
+
+    def backup_database():
+
+        db_path = "database/meterdata.db"
+
+        timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M")
+
+        default_filename = f"meterdata_{timestamp}.db"
+
+        file = filedialog.asksaveasfilename(
+            title="Backup Database",
+            defaultextension=".db",
+            initialfile=default_filename,
+            filetypes=[("Database Files","*.db")]
+        )
+
+        if not file:
+            return
+
+        try:
+            shutil.copy2(db_path, file)
+            messagebox.showinfo(
+                "Backup Complete",
+                f"Database backed up successfully to:\n{file}"
+            )
+            status.configure(text="Database backup completed")
+        except Exception as e:
+            messagebox.showerror(
+                "Backup Error",
+                f"Failed to backup database:\n{str(e)}"
+            )
+            status.configure(text="Backup failed")
+
+    # -----------------------------------
+    # Restore Database
+    # -----------------------------------
+
+    def restore_database():
+
+        db_path = "database/meterdata.db"
+
+        file = filedialog.askopenfilename(
+            title="Select Database File to Restore",
+            filetypes=[("Database Files","*.db")]
+        )
+
+        if not file:
+            return
+
+        confirm = messagebox.askyesno(
+            "Confirm Restore",
+            "This will replace your current database. Continue?"
+        )
+
+        if not confirm:
+            return
+
+        try:
+            shutil.copy2(file, db_path)
+            messagebox.showinfo(
+                "Restore Complete",
+                "Database restored successfully.\nPlease restart the application for changes to take effect."
+            )
+            status.configure(text="Database restored. Please restart application.")
+        except Exception as e:
+            messagebox.showerror(
+                "Restore Error",
+                f"Failed to restore database:\n{str(e)}"
+            )
+            status.configure(text="Restore failed")
+
+    # -----------------------------------
     # UI
     # -----------------------------------
 
@@ -340,6 +415,46 @@ def start_app():
     )
 
     toolbar.export_pdf_btn.pack(
+
+        side="left",
+
+        padx=10
+
+    )
+
+    toolbar.backup_btn = ctk.CTkButton(
+
+        toolbar,
+
+        text="💾 Backup DB",
+
+        width=140,
+
+        command=backup_database
+
+    )
+
+    toolbar.backup_btn.pack(
+
+        side="left",
+
+        padx=10
+
+    )
+
+    toolbar.restore_btn = ctk.CTkButton(
+
+        toolbar,
+
+        text="♻️ Restore DB",
+
+        width=140,
+
+        command=restore_database
+
+    )
+
+    toolbar.restore_btn.pack(
 
         side="left",
 
