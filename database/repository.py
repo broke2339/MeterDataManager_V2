@@ -92,6 +92,77 @@ def search_consumer(search_value):
 
     return row
 
+# =====================================================
+# Search Multiple Consumers with Pagination
+# =====================================================
+
+def search_consumers_paginated(search_value, page, page_size):
+
+    offset = (page - 1) * page_size
+
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        SELECT
+            meter_no,
+            consumer_no,
+            consumer_name,
+            mobile1,
+            division
+
+        FROM consumers
+
+        WHERE meter_no LIKE ?
+           OR consumer_no LIKE ?
+           OR consumer_name LIKE ?
+
+        ORDER BY consumer_name
+
+        LIMIT ?
+        OFFSET ?
+
+    """, (
+        f"%{search_value}%",
+        f"%{search_value}%",
+        f"%{search_value}%",
+        page_size,
+        offset
+    ))
+
+    rows = cursor.fetchall()
+
+    conn.close()
+
+    return rows
+
+
+# =====================================================
+# Count Search Results
+# =====================================================
+
+def count_search_results(search_value):
+
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        SELECT COUNT(*)
+        FROM consumers
+        WHERE meter_no LIKE ?
+           OR consumer_no LIKE ?
+           OR consumer_name LIKE ?
+    """, (
+        f"%{search_value}%",
+        f"%{search_value}%",
+        f"%{search_value}%"
+    ))
+
+    total = cursor.fetchone()[0]
+
+    conn.close()
+
+    return total
 
 # =====================================================
 # Total Records
